@@ -1,5 +1,6 @@
 local core  = require 'core.rename'
 local files = require 'files'
+local config = require 'config'
 
 local function replace(text, positions)
     local buf = {}
@@ -33,6 +34,33 @@ function TEST(oldName, newName)
         end
     end
 end
+
+config.config.runtime.special = {
+    _class = "diyclass",
+    _enum = "diyset",
+    _autoEnum = "diyset",
+    _staticClass = "diyset",
+}
+
+TEST ('a', 'b') [[
+---@class mt : Foo2
+_class("mt", Foo2)
+function mt:a(x, y)
+end
+
+---@type mt
+local foo = get()
+foo:a()
+]] [[
+---@class mt : Foo2
+_class("mt", Foo2)
+function mt:b(x, y)
+end
+
+---@type mt
+local foo = get()
+foo:b()
+]]
 
 TEST ('a', 'b') [[
 local a = 1

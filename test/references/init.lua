@@ -1,5 +1,6 @@
 local core = require 'core.reference'
 local files = require 'files'
+local config = require 'config'
 
 local function catch_target(script)
     local list = {}
@@ -51,6 +52,51 @@ function TEST(script)
         assert(#target == 0)
     end
 end
+
+config.config.runtime.special = {
+    _class = "diyclass",
+    _enum = "diyset",
+    _autoEnum = "diyset",
+    _staticClass = "diyset",
+}
+
+TEST [[
+---@class Dog
+local Dog = {}
+function Dog:<?eat?>()
+end
+
+---@generic T
+---@param type1 T
+---@return T
+function foobar(type1)
+    return {}
+end
+
+local v1 = foobar(Dog)
+v1:<!eat!>()
+]]
+
+TEST [[
+---@class Dog
+local Dog = {}
+function Dog:<?eat?>()
+end
+
+---@class Master
+local Master = {}
+
+---@generic T
+---@param type1 string
+---@param type2 T
+---@return T
+function Master:foobar(type1, type2)
+    return {}
+end
+
+local v1 = Master:foobar("", Dog)
+v1.<!eat!>()
+]]
 
 TEST [[
 local <?a?> = 1
