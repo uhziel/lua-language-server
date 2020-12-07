@@ -955,6 +955,9 @@ local function bindDocsBetween(state, binded, bindSources, start, finish)
         or src.type == 'tablefield'
         or src.type == 'tableindex'
         or src.type == 'function'
+        or (src.type == 'call' and
+            (src.node.special == 'diyset' or src.node.special == 'diyclass')
+        )
         or src.type == '...' then
             src.bindDocs = binded
             bindSources[#bindSources+1] = src

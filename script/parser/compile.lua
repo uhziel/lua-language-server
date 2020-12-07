@@ -12,6 +12,8 @@ local specials = {
     ['loadfile']     = true,
     ['pcall']        = true,
     ['xpcall']       = true,
+    ['diyset']       = true,
+    ['diyclass']     = true,
 }
 
 _ENV = nil

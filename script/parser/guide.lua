@@ -786,6 +786,9 @@ end
 function m.getSimpleName(obj)
     if obj.type == 'call' then
         local key = obj.args and obj.args[2]
+        if obj.node.special == 'diyset' or obj.node.special == 'diyclass' then
+            key = obj.args[1]
+        end
         return m.getKeyName(key)
     elseif obj.type == 'table' then
         return ('%p'):format(obj)
@@ -1078,6 +1081,12 @@ local function convertSimpleList(list)
             if not simple.node then
                 simple.node = c
             end
+        elseif c.type == 'call' and
+            (c.node.special == 'diyset' or c.node.special == 'diyclass') then
+            simple.mode = 'global'
+            if not simple.node then
+                simple.node = c
+            end
         else
             if not simple.node then
                 simple.node = c
@@ -1140,6 +1149,10 @@ local function buildSimpleList(obj, max)
         elseif cur.type == 'string' then
             list[i] = cur
             break
+        elseif obj.type == 'call' and 
+            (obj.node.special == 'diyset' or obj.node.special == 'diyclass') then
+            list[i] = cur
+            break
         elseif cur.type == 'doc.class.name'
         or     cur.type == 'doc.type.name'
         or     cur.type == 'doc.class'
@@ -1177,6 +1190,9 @@ function m.getSimple(obj, max)
     or obj.type == 'select'
     or obj.type == 'table'
     or obj.type == 'string'
+    or (obj.type == 'call' and
+        (obj.node.special == 'diyset' or obj.node.special == 'diyclass')
+    )
     or obj.type == 'doc.class.name'
     or obj.type == 'doc.class'
     or obj.type == 'doc.type.name'
@@ -1353,6 +1369,8 @@ function m.getObjectValue(obj)
     if obj.type == 'call' then
         if obj.node.special == 'rawset' then
             return obj.args[3]
+        elseif obj.node.special == 'diyset' then
+            return obj.args[2]
         end
     end
     if obj.type == 'select' then
@@ -1894,6 +1912,48 @@ local function searchRawset(ref, results)
     results[#results+1] = call
 end
 
+local function searchDiyset(ref, results)
+    if ref.special ~= "diyset" then
+        return
+    end
+    local call = ref.parent
+    if call.type ~= 'call' or call.node ~= ref then
+        return
+    end
+    if call.node.special ~= 'diyset' then
+        return
+    end
+    if not call.args then
+        return
+    end
+    local arg1 = call.args[1]
+    if not arg1 then
+        return
+    end
+    results[#results+1] = call
+end
+
+local function searchDiyclass(ref, results)
+    if ref.special ~= "diyclass" then
+        return
+    end
+    local call = ref.parent
+    if call.type ~= 'call' or call.node ~= ref then
+        return
+    end
+    if call.node.special ~= 'diyclass' then
+        return
+    end
+    if not call.args then
+        return
+    end
+    local arg1 = call.args[1]
+    if not arg1 then
+        return
+    end
+    results[#results+1] = call
+end
+
 local function searchG(ref, results)
     while ref and m.getKeyName(ref) == '_G' do
         results[#results+1] = ref
@@ -1902,6 +1962,8 @@ local function searchG(ref, results)
     if ref then
         results[#results+1] = ref
         searchRawset(ref, results)
+        searchDiyset(ref, results)
+        searchDiyclass(ref, results)
     end
 end
 
@@ -2184,7 +2246,8 @@ function m.pushResult(status, mode, ref, simple)
         or     ref.type == 'tableindex' then
             results[#results+1] = ref
         elseif ref.type == 'call' then
-            if ref.node.special == 'rawset' then
+            if ref.node.special == 'rawset'
+                or ref.node.special == 'diyset' or ref.node.special == 'diyclass' then
                 results[#results+1] = ref
             end
         elseif ref.type == 'function' then
@@ -2230,7 +2293,8 @@ function m.pushResult(status, mode, ref, simple)
             results[#results+1] = ref
         elseif ref.type == 'call' then
             if ref.node.special == 'rawset'
-            or ref.node.special == 'rawget' then
+            or ref.node.special == 'rawget'
+            or ref.node.special == 'diyset' or ref.node.special == 'diyclass' then
                 results[#results+1] = ref
             end
         elseif ref.type == 'doc.type.function'
@@ -2267,7 +2331,8 @@ function m.pushResult(status, mode, ref, simple)
             results[#results+1] = ref
         elseif ref.type == 'call' then
             if ref.node.special == 'rawset'
-            or ref.node.special == 'rawget' then
+            or ref.node.special == 'rawget'
+            or ref.node.special == 'diyset' or ref.node.special == 'diyclass' then
                 results[#results+1] = ref
             end
         elseif ref.type == 'doc.type.function'
