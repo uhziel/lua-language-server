@@ -1,6 +1,7 @@
 local files = require 'files'
 local core = require 'core.completion'
 local furi = require 'file-uri'
+local platform = require 'platform'
 
 rawset(_G, 'TEST', true)
 
@@ -600,3 +601,83 @@ local z: {}
         },
     }
 }
+
+if platform.OS == 'Windows' then
+Cared['detail'] = true
+Cared['additionalTextEdits'] = true
+TEST {
+    {
+        path = 'myfunc.lua',
+        content = [[
+            return function (a, b)
+            end
+        ]]
+    },
+    {
+        path = 'main.lua',
+        main = true,
+        content = [[
+            myfun$
+        ]],
+    },
+    completion = {
+        {
+            label = 'myfunc',
+            kind  = CompletionItemKind.Variable,
+            detail = 'function',
+            description = [[
+从 [myfunc.lua](file:///myfunc.lua) 中导入
+```lua
+function (a: any, b: any)
+```]],
+            additionalTextEdits = {
+                {
+                    start   = 1,
+                    finish  = 0,
+                    newText = 'local myfunc = require "myfunc"\n'
+                }
+            }
+        }
+    }
+}
+
+
+TEST {
+    {
+        path = 'dir/myfunc.lua',
+        content = [[
+            return function (a, b)
+            end
+        ]]
+    },
+    {
+        path = 'main.lua',
+        main = true,
+        content = [[
+            myfun$
+        ]],
+    },
+    completion = {
+        {
+            label = 'myfunc',
+            kind  = CompletionItemKind.Variable,
+            detail = 'function',
+            description = [[
+从 [dir\myfunc.lua](file:///dir/myfunc.lua) 中导入
+```lua
+function (a: any, b: any)
+```]],
+            additionalTextEdits = {
+                {
+                    start   = 1,
+                    finish  = 0,
+                    newText = 'local myfunc = require "dir.myfunc"\n'
+                }
+            }
+        }
+    }
+}
+
+Cared['detail'] = nil
+Cared['additionalTextEdits'] = nil
+end

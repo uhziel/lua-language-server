@@ -52,7 +52,7 @@ function m.isSet(src)
     end
     if tp == 'call' then
         local special = m.getSpecial(src.node)
-        if special == 'rawset' then
+        if special == 'rawset' or special == 'diyset' or special == 'diyclass' then
             return true
         end
     end
@@ -110,6 +110,8 @@ function m.getKeyName(source)
         if special == 'rawset'
         or special == 'rawget' then
             return guide.getKeyNameOfLiteral(source.args[2])
+        elseif special == 'diyset' or special == 'diyclass' then
+            return guide.getKeyNameOfLiteral(source.args[1])
         end
     end
     return guide.getKeyName(source)

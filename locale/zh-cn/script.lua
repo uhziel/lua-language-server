@@ -163,6 +163,7 @@ ACTION_FIX_DO_AS_THEN   = '改为 `do` 。'
 ACTION_ADD_END          = '添加 `end` （根据缩进推测添加位置）。'
 ACTION_FIX_COMMENT_PREFIX = '改为 `--` 。'
 ACTION_RUNTIME_UNICODE_NAME = '允许使用 Unicode 字符。'
+ACTION_SWAP_PARAMS      = '将其改为 `{node}` 的第 {index} 个参数'
 
 COMMAND_DISABLE_DIAG    = '禁用诊断'
 COMMAND_MARK_GLOBAL     = '标记全局变量'
@@ -171,6 +172,8 @@ COMMAND_ADD_BRACKETS    = '添加括号'
 COMMAND_RUNTIME_VERSION = '修改运行版本'
 COMMAND_OPEN_LIBRARY    = '加载第三方库中的全局变量'
 COMMAND_UNICODE_NAME    = '允许使用 Unicode 字符'
+
+COMPLETION_IMPORT_FROM  = '从 {} 中导入'
 
 DEBUG_MEMORY_LEAK       = '{} 很抱歉发生了严重的内存泄漏，语言服务即将重启。'
 DEBUG_RESTART_NOW       = '立即重启'

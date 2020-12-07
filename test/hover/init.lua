@@ -26,6 +26,12 @@ end
 "function x(a: any, b: any)"
 
 TEST [[
+local <?function?> x(a, b)
+end
+]]
+"function x(a: any, b: any)"
+
+TEST [[
 local function x(a, b)
 end
 <?x?>()
@@ -890,6 +896,21 @@ local t: {
 }
 ]]
 
+TEST [[
+local <?t?> = {
+    [-1] = -1,
+    [0]  = 0,
+    [1]  = 1,
+}
+]]
+[[
+local t: {
+    [-1]: integer = -1,
+    [0]: integer = 0,
+    [1]: integer = 1,
+}
+]]
+
 TEST[[
 ---@class Class
 local <?x?> = class()
@@ -1474,5 +1495,18 @@ print(v.a)
 [[
 local v: Object {
     a: string,
+}
+]]
+
+TEST [[
+---@class C
+---@field x string
+local t
+
+local <?v?> = assert(t)
+]]
+[[
+local v: C {
+    x: string,
 }
 ]]

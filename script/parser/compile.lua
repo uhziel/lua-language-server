@@ -1,5 +1,6 @@
 local guide = require 'parser.guide'
 local type = type
+local os   = os
 
 local specials = {
     ['_G']           = true,
@@ -11,6 +12,8 @@ local specials = {
     ['loadfile']     = true,
     ['pcall']        = true,
     ['xpcall']       = true,
+    ['diyset']       = true,
+    ['diyclass']     = true,
 }
 
 _ENV = nil
@@ -537,6 +540,7 @@ return function (self, lua, mode, version, options)
     if not state then
         return nil, err
     end
+    local clock = os.clock()
     pushError = state.pushError
     if version == 'Lua 5.1' or version == 'LuaJIT' then
         ENVMode = '@fenv'
@@ -548,13 +552,16 @@ return function (self, lua, mode, version, options)
     LocalCount = 0
     Version = version
     Root = state.ast
-    Root.state = state
+    if Root then
+        Root.state = state
+    end
     Options = options
     state.ENVMode = ENVMode
     if type(state.ast) == 'table' then
         Compile(state.ast)
     end
     PostCompile()
+    state.compileClock = os.clock() - clock
     Compiled = nil
     GoToTag = nil
     return state

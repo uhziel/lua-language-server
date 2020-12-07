@@ -44,5 +44,37 @@
                 "command": "${workspaceFolder}/3rd/luamake/luamake rebuild"
             }
         },
+        {
+            "label": "Install",
+            "windows": {
+                "command": "xcopy",
+                "args": [
+                    "/S",
+                    "/I",
+                    "/E",
+                    "/Y",
+                    "${workspaceFolder}\\script",
+                    "${command:extensionPath}\\sumneko.lua-1.4.0\\server\\script",
+                ],
+            },
+            "linux": {
+                "command": "${workspaceFolder}/server/build/linux/bin/lua",
+                "args": [
+                    "-e",
+                    "package.cpath = \"./server/build/linux/bin/?.so;\" .. package.cpath",
+                    "make/copy.lua",
+                    "${command:extensionPath}",
+                ],
+            },
+            "osx": {
+                "command": "${workspaceFolder}/server/build/macos/bin/lua",
+                "args": [
+                    "-e",
+                    "package.cpath = \"./server/build/macos/bin/?.so;\" .. package.cpath",
+                    "make/copy.lua",
+                    "${command:extensionPath}",
+                ],
+            },
+        }
     ]
 }

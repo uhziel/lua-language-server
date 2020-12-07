@@ -1,5 +1,6 @@
 local core = require 'core.reference'
 local files = require 'files'
+local config = require 'config'
 
 local function catch_target(script)
     local list = {}
@@ -51,6 +52,70 @@ function TEST(script)
         assert(#target == 0)
     end
 end
+
+config.config.runtime.special = {
+    _class = "diyclass",
+    _enum = "diyset",
+    _autoEnum = "diyset",
+    _staticClass = "diyset",
+}
+
+TEST [[
+---@class Dog
+local Dog = {}
+function Dog:<?eat?>()
+end
+
+---@generic T
+---@param type1 T
+---@return T
+function foobar(type1)
+    return {}
+end
+
+local v1 = foobar(Dog)
+v1:<!eat!>()
+]]
+
+TEST [[
+---@class Dog
+local Dog = {}
+function Dog:<?eat?>()
+end
+
+---@class Master
+local Master = {}
+
+---@generic T
+---@param type1 string
+---@param type2 T
+---@return T
+function Master:foobar(type1, type2)
+    return {}
+end
+
+local v1 = Master:foobar("", Dog)
+v1.<!eat!>()
+]]
+
+--[=[ TODO
+TEST [[
+---@class Dog
+local Dog = {}
+function Dog:<?eat?>()
+end
+
+---@generic T
+---@param type1 T
+---@return string, T
+function foobar(type1)
+    return "", {}
+end
+
+local v1, v2 = foobar(Dog)
+v2:<!eat!>()
+]]
+]=]
 
 TEST [[
 local <?a?> = 1
@@ -129,8 +194,8 @@ end
 
 TEST [[
 local function f()
-    return <?function ()
-    end?>
+    return <~<!function~> ()
+    end!>
 end
 
 local <!f2!> = f()
@@ -138,8 +203,8 @@ local <!f2!> = f()
 
 TEST [[
 local function f()
-    return nil, <?function ()
-    end?>
+    return nil, <~<!function~> ()
+    end!>
 end
 
 local _, <!f2!> = f()
@@ -305,57 +370,21 @@ function f() end
 
 TEST [[
 ---@class Dog
-local Dog = {}
-function Dog:<?eat?>()
-end
-
----@generic T
----@param type1 T
----@return T
-function foobar(type1)
-    return {}
-end
-
-local v1 = foobar(Dog)
-v1:<!eat!>()
-]]
-
-TEST [[
----@class Dog
-local Dog = {}
-function Dog:<?eat?>()
+local mt = {}
+function mt:<?eat?>()
 end
 
 ---@class Master
-local Master = {}
-
----@generic T
----@param type1 string
----@param type2 T
----@return T
-function Master:foobar(type1, type2)
-    return {}
+local mt2 = {}
+function mt2:init()
+    ---@type Dog
+    local foo = self:doSomething()
+    ---@type Dog
+    self.dog = getDog()
 end
-
-local v1 = Master:foobar("", Dog)
-v1.<!eat!>()
+function mt2:feed()
+    self.dog:<!eat!>()
+end
+function mt2:doSomething()
+end
 ]]
-
---[=[ TODO
-TEST [[
----@class Dog
-local Dog = {}
-function Dog:<?eat?>()
-end
-
----@generic T
----@param type1 T
----@return string, T
-function foobar(type1)
-    return "", {}
-end
-
-local v1, v2 = foobar(Dog)
-v2:<!eat!>()
-]]
-]=]

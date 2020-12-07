@@ -372,6 +372,8 @@ proto.on('textDocument/completion', function (params)
             sortText         = ('%04d'):format(i),
             insertText       = res.insertText,
             insertTextFormat = res.insertTextFormat,
+            commitCharacters = res.commitCharacters,
+            command          = res.command,
             textEdit         = res.textEdit and {
                 range   = define.range(
                     lines,
@@ -390,7 +392,8 @@ proto.on('textDocument/completion', function (params)
                             text,
                             edit.start,
                             edit.finish
-                        )
+                        ),
+                        newText = edit.newText,
                     }
                 end
                 return t
@@ -414,6 +417,7 @@ proto.on('textDocument/completion', function (params)
                 easy = false
                 item.data = {
                     version = files.globalVersion,
+                    uri     = uri,
                     id      = res.id,
                 }
             end
@@ -432,7 +436,8 @@ proto.on('completionItem/resolve', function (item)
         return item
     end
     local globalVersion = item.data.version
-    local id = item.data.id
+    local id            = item.data.id
+    local uri           = item.data.uri
     if globalVersion ~= files.globalVersion then
         return item
     end
@@ -441,11 +446,28 @@ proto.on('completionItem/resolve', function (item)
     if not resolved then
         return nil
     end
+    local lines  = files.getLines(uri)
+    local text   = files.getText(uri)
     item.detail = resolved.detail
     item.documentation = resolved.description and {
         value = resolved.description,
         kind  = 'markdown',
     }
+    item.additionalTextEdits = resolved.additionalTextEdits and (function ()
+        local t = {}
+        for j, edit in ipairs(resolved.additionalTextEdits) do
+            t[j] = {
+                range   = define.range(
+                    lines,
+                    text,
+                    edit.start,
+                    edit.finish
+                ),
+                newText = edit.newText,
+            }
+        end
+        return t
+    end)()
     return item
 end)
 
@@ -557,6 +579,20 @@ proto.on('textDocument/codeAction', function (params)
 
     if not results or #results == 0 then
         return nil
+    end
+
+    for _, res in ipairs(results) do
+        if res.edit then
+            for turi, changes in pairs(res.edit.changes) do
+                local ttext  = files.getText(turi)
+                local tlines = files.getLines(turi)
+                for _, change in ipairs(changes) do
+                    change.range = define.range(tlines, ttext, change.start, change.finish)
+                    change.start  = nil
+                    change.finish = nil
+                end
+            end
+        end
     end
 
     return results
