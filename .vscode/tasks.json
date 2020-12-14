@@ -54,7 +54,7 @@
                     "/E",
                     "/Y",
                     "${workspaceFolder}\\script",
-                    "${command:extensionPath}\\sumneko.lua-1.5.0\\server\\script",
+                    "${command:extensionPath}\\sumneko.lua-1.6.0\\server\\script",
                 ],
             },
             "linux": {
