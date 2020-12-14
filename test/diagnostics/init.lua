@@ -824,6 +824,10 @@ TEST [[
 local t
 ]]
 
+TEST [[
+local _ <close> = function () end
+]]
+
 -- checkUndefinedField 通用
 TEST [[
 ---@class Foo
@@ -921,4 +925,23 @@ function mt:method1()
     self.method1()
     return <!self.method2!>() -- doc.class.name
 end
+]]
+
+-- checkUndefinedField 当会推导成多个class类型时
+TEST [[
+---@class Foo
+local mt
+function mt:method1() end
+
+---@class Bar
+local mt2
+function mt2:method2() end
+
+---@type Foo
+local v
+---@type Bar
+local v2
+v2 = v
+v2:method1()
+v2:method2() -- 这个感觉实际应该报错更合适
 ]]
