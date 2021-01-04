@@ -76,7 +76,7 @@ local <!x!>
 ]]
 
 TEST [[
-local x <close>
+local x <close> = print
 ]]
 
 TEST [[
@@ -319,6 +319,16 @@ return [[
 ]]
 ]=]
 
+config.config.diagnostics.disable['close-non-object'] = true
+TEST [[
+local _ <close> = function () end
+]]
+
+config.config.diagnostics.disable['close-non-object'] = nil
+TEST [[
+local _ <close> = <!1!>
+]]
+
 config.config.diagnostics.disable['unused-local'] = true
 TEST [[
 local f = <!function () end!>
@@ -340,8 +350,7 @@ TEST [[
 --<!function F() end!>
 --]]
 
-config.config.diagnostics.disable['unused-local'] = false
-config.config.diagnostics.disable['unused-function'] = true
+config.config.diagnostics.disable['unused-local'] = nil
 TEST [[
 local mt, x
 function mt:m()
@@ -823,11 +832,7 @@ TEST [[
 ---@class class
 local t
 ]]
-
-TEST [[
-local _ <close> = function () end
-]]
-
+---[==[
 -- checkUndefinedField 通用
 TEST [[
 ---@class Foo
@@ -947,19 +952,17 @@ v2:method2() -- 这个感觉实际应该报错更合适
 ]]
 
 TEST [[
----@class Foo
-Foo = {}
-function Foo:Constructor()
-    self.bar1 = 1
-end
+---@type table
+T1 = {}
+print(T1.f1)
+---@type table*
+T2 = {}
+print(T2.<!f2!>)
+]]
+--]==]
+TEST [[
+---@overload fun(...)
+local function f() end
 
----@class Foo2: Foo
-local Foo2 = {}
-function Foo2:Constructor()
-    self.bar2 = 1
-end
-
----@type Foo2
-local v
-print(v.bar1)
+f(1)
 ]]

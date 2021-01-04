@@ -22,13 +22,29 @@ local function countFuncArgs(source)
     if source.parent and source.parent.type == 'setmethod' then
         result = result + 1
     end
-    if not source.args then
+    if not source.args or #source.args == 0 then
         return result
     end
     if source.args[#source.args].type == '...' then
         return math.maxinteger
     end
     result = result + #source.args
+    return result
+end
+
+local function countOverLoadArgs(source, doc)
+    local result = 0
+    if source.parent and source.parent.type == 'setmethod' then
+        result = result + 1
+    end
+    local func = doc.overload
+    if not func.args or #func.args == 0 then
+        return result
+    end
+    if func.args[#func.args].type == '...' then
+        return math.maxinteger
+    end
+    result = result + #func.args
     return result
 end
 
@@ -55,6 +71,16 @@ return function (uri, callback)
                 local args = countFuncArgs(def)
                 if not funcArgs or args > funcArgs then
                     funcArgs = args
+                end
+                if def.bindDocs then
+                    for _, doc in ipairs(def.bindDocs) do
+                        if doc.type == 'doc.overload' then
+                            args = countOverLoadArgs(def, doc)
+                            if not funcArgs or args > funcArgs then
+                                funcArgs = args
+                            end
+                        end
+                    end
                 end
             end
         end

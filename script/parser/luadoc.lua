@@ -56,6 +56,7 @@ Symbol              <-  ({} {
                         /   '...'
                         /   '+'
                         /   '#'
+                        /   '`'
                         } {})
                     ->  Symbol
 ]], {
@@ -450,11 +451,40 @@ function parseType(parent)
         if not tp then
             break
         end
+
+        -- 处理 `T` 的情况
+        local typeLiteral = nil
+        if tp == 'symbol' and content == '`' then
+            nextToken()
+            if not checkToken('symbol', '`', 2) then
+                break
+            end
+            tp, content = peekToken()
+            if not tp then
+                break
+            end
+            -- TypeLiteral，指代类型的字面值。比如，对于类 Cat 来说，它的 TypeLiteral 是 "Cat"
+            typeLiteral = {
+                type   = 'doc.type.typeliteral',
+                parent = result,
+                start  = getStart(),
+                finish = nil,
+                node   = nil,
+            }
+        end
+
         if tp == 'name' then
             nextToken()
             local typeUnit = parseTypeUnit(result, content)
             if not typeUnit then
                 break
+            end
+            if typeLiteral then
+                nextToken()
+                typeLiteral.finish = getFinish()
+                typeLiteral.node = typeUnit
+                typeUnit.parent = typeLiteral
+                typeUnit = typeLiteral
             end
             result.types[#result.types+1] = typeUnit
             if not result.start then
@@ -917,8 +947,9 @@ local function isNextLine(lns, binded, doc)
         return false
     end
     local lastDoc = binded[#binded]
-    local _, lastDocStartCol, lastDocStartLine = guide.positionOf(lns, lastDoc.originalComment.start)
-    if haveCodeBeforeDocInCurLine(lastDocStartLine, lastDocStartCol) then
+    local lastDocStartRow, lastDocStartCol = guide.positionOf(lns, lastDoc.originalComment.start)
+    local lastDocStartLineData = guide.lineData(lns, lastDocStartRow)
+    if haveCodeBeforeDocInCurLine(lastDocStartLineData, lastDocStartCol) then
         return false
     end
 

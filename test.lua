@@ -18,6 +18,7 @@ log.debug('测试开始')
 ac = {}
 
 --dofile((ROOT / 'build_package.lua'):string())
+require 'tracy'
 
 local function loadAllLibs()
     assert(require 'bee.filesystem')
@@ -46,6 +47,7 @@ local function main()
     debug.setcstacklimit(1000)
     require 'parser.guide'.debugMode = true
     require 'language' 'zh-cn'
+    require 'utility'.enableCloseFunction()
     local function test(name)
         local clock = os.clock()
         print(('测试[%s]...'):format(name))
@@ -80,3 +82,5 @@ loadAllLibs()
 main()
 
 log.debug('测试完成')
+require 'bee.thread'.sleep(1)
+os.exit()
