@@ -27,6 +27,8 @@ local function logWarn(...)
     log.warn(...)
 end
 
+---@class guide
+---@field debugMode boolean
 local m = {}
 
 m.ANY = {"<ANY>"}
@@ -1251,6 +1253,7 @@ function m.status(parentStatus, interface, deep)
         searchDeep= parentStatus and parentStatus.searchDeep  or deep or -999,
         interface = parentStatus and parentStatus.interface   or {},
         deep      = parentStatus and parentStatus.deep,
+        clock     = parentStatus and parentStatus.clock       or osClock(),
         results   = {},
     }
     if interface then
@@ -1380,6 +1383,10 @@ function m.getCallValue(source)
     else
         return
     end
+    if call.node.special == 'pcall'
+    or call.node.special == 'xpcall' then
+        return call.args[1], call.args, index - 1
+    end
     return call.node, call.args, index
 end
 
@@ -1495,6 +1502,9 @@ function m.checkSameSimpleInValueOfSetMetaTable(status, func, start, pushQueue)
     end
     local call = func.parent
     local args = call.args
+    if not args then
+        return
+    end
     local obj = args[1]
     local mt = args[2]
     if obj then
@@ -1670,6 +1680,20 @@ function m.checkSameSimpleOfRefByDocSource(status, obj, start, pushQueue, mode)
     end
 end
 
+local function getArrayLevel(obj)
+    local level = 0
+    while true do
+        local parent = obj.parent
+        if parent.type == 'doc.type.array' then
+            level = level + 1
+        else
+            break
+        end
+        obj = parent
+    end
+    return level
+end
+
 function m.checkSameSimpleByDoc(status, obj, start, pushQueue, mode)
     if obj.type == 'doc.class.name'
     or obj.type == 'doc.class' then
@@ -1722,7 +1746,7 @@ function m.checkSameSimpleByDoc(status, obj, start, pushQueue, mode)
         if not parentDocTypeTable then
             local state = m.getDocState(obj)
             if state.type == 'doc.type' and mode == 'ref' then
-                m.checkSameSimpleOfRefByDocSource(status, state, start, pushQueue, mode)
+                m.checkSameSimpleOfRefByDocSource(status, state, start - getArrayLevel(obj), pushQueue, mode)    
             end
         end
         return true
@@ -1850,6 +1874,7 @@ function m.searchSameFieldsCrossMethod(status, ref, start, pushQueue)
 end
 
 local function checkSameSimpleAndMergeFunctionReturnsByDoc(status, results, source, index, args)
+    source = m.getObjectValue(source) or source
     if not source or source.type ~= 'function' then
         return
     end
@@ -1939,13 +1964,13 @@ function m.checkSameSimpleInCall(status, ref, start, pushQueue, mode)
         return
     end
     status.share.crossCallCount = status.share.crossCallCount or 0
-    if status.share.crossCallCount >= 5 then
-        return
-    end
-    status.share.crossCallCount = status.share.crossCallCount + 1
     -- 检查赋值是 semetatable() 的情况
     m.checkSameSimpleInValueOfSetMetaTable(status, func, start, pushQueue)
     -- 检查赋值是 func() 的情况
+    if status.share.crossCallCount >= 2 then
+        return
+    end
+    status.share.crossCallCount = status.share.crossCallCount + 1
     local objs = m.checkSameSimpleInCallInSameFile(status, func, args, index)
     if status.interface.call then
         local cobjs = status.interface.call(func, args, index)
@@ -1958,15 +1983,22 @@ function m.checkSameSimpleInCall(status, ref, start, pushQueue, mode)
         end
     end
     m.cleanResults(objs)
-    local newStatus = m.status(status)
+    local mark = {}
     for _, obj in ipairs(objs) do
+        if mark[obj] then
+            goto CONTINUE
+        end
+        local newStatus = m.status(status)
         m.searchRefs(newStatus, obj, mode)
         pushQueue(obj, start, true)
+        mark[obj] = true
+        for _, obj in ipairs(newStatus.results) do
+            pushQueue(obj, start, true)
+            mark[obj] = true
+        end
+        ::CONTINUE::
     end
     status.share.crossCallCount = status.share.crossCallCount - 1
-    for _, obj in ipairs(newStatus.results) do
-        pushQueue(obj, start, true)
-    end
 end
 
 local function searchRawset(ref, results)
@@ -2382,6 +2414,7 @@ function m.pushResult(status, mode, ref, simple)
             results[#results+1] = ref
         elseif ref.type == 'doc.type.function'
         or     ref.type == 'doc.class.name'
+        or     ref.type == 'doc.alias.name'
         or     ref.type == 'doc.field' then
             results[#results+1] = ref
         end
@@ -2425,6 +2458,7 @@ function m.pushResult(status, mode, ref, simple)
             end
         elseif ref.type == 'doc.type.function'
         or     ref.type == 'doc.class.name'
+        or     ref.type == 'doc.alias.name'
         or     ref.type == 'doc.field' then
             results[#results+1] = ref
         end
@@ -2432,6 +2466,7 @@ function m.pushResult(status, mode, ref, simple)
             results[#results+1] = ref
         end
         if  m.isLiteral(ref)
+        and ref.parent
         and ref.parent.type == 'callargs'
         and ref ~= simple.node then
             results[#results+1] = ref
@@ -2455,19 +2490,13 @@ function m.pushResult(status, mode, ref, simple)
         elseif ref.type == 'setglobal'
         or     ref.type == 'getglobal' then
             results[#results+1] = ref
-        elseif ref.type == 'function' then
-            results[#results+1] = ref
-        elseif ref.type == 'table' then
-            results[#results+1] = ref
         elseif ref.type == 'call' then
             if ref.node.special == 'rawset'
             or ref.node.special == 'rawget'
             or ref.node.special == 'diyset' or ref.node.special == 'diyclass' then
                 results[#results+1] = ref
             end
-        elseif ref.type == 'doc.type.function'
-        or     ref.type == 'doc.class.name'
-        or     ref.type == 'doc.field' then
+        elseif ref.type == 'doc.field' then
             results[#results+1] = ref
         end
     elseif mode == 'deffield' then
@@ -2481,17 +2510,11 @@ function m.pushResult(status, mode, ref, simple)
             results[#results+1] = ref
         elseif ref.type == 'setglobal' then
             results[#results+1] = ref
-        elseif ref.type == 'function' then
-            results[#results+1] = ref
-        elseif ref.type == 'table' then
-            results[#results+1] = ref
         elseif ref.type == 'call' then
             if ref.node.special == 'rawset' then
                 results[#results+1] = ref
             end
-        elseif ref.type == 'doc.type.function'
-        or     ref.type == 'doc.class.name'
-        or     ref.type == 'doc.field' then
+        elseif ref.type == 'doc.field' then
             results[#results+1] = ref
         end
     end
@@ -2499,10 +2522,6 @@ end
 
 function m.checkSameSimpleName(ref, sm)
     if sm == m.ANY then
-        return true
-    end
-
-    if sm == m.ANY_DEF and m.isSet(ref) then
         return true
     end
 
@@ -2631,6 +2650,9 @@ function m.searchSameFields(status, simple, mode)
         local obj   = queues[queueLen]
         local start = starts[queueLen]
         local force = forces[queueLen]
+        queues[queueLen] = nil
+        starts[queueLen] = nil
+        forces[queueLen] = nil
         queueLen = queueLen - 1
         local lock = locks[start]
         if not lock then
@@ -2641,6 +2663,18 @@ function m.searchSameFields(status, simple, mode)
             lock[obj] = true
             max = max + 1
             status.share.count = status.share.count + 1
+            if status.share.count % 10000 == 0 then
+                if TEST then
+                    print('####', status.share.count, osClock() - status.clock)
+                end
+                if status.interface and status.interface.pulse then
+                    status.interface.pulse()
+                end
+            end
+            --if status.share.count >= 100000 then
+            --    logWarn('Count too large!')
+            --    break
+            --end
             m.checkSameSimple(status, simple, obj, start, force, mode, pushQueue)
             if max >= 10000 then
                 logWarn('Queue too large!')
@@ -2648,7 +2682,7 @@ function m.searchSameFields(status, simple, mode)
             end
         end
     end
-    deallocQueue(queues, starts, forces)
+    --deallocQueue(queues, starts, forces)
 end
 
 function m.getCallerInSameFile(status, func)
@@ -2805,12 +2839,9 @@ end
 --end
 
 function m.getRefCache(status, obj, mode)
-    local cache, globalCache
-    if  status.depth == 1
-    and status.deep then
-        globalCache = status.interface.cache and status.interface.cache() or {}
-    end
-    cache = status.share.refCache or {}
+    local isDeep    = status.deep and status.depth == 1
+    local cache     = status.share.refCache or {}
+    local deepCache = status.interface.cache and status.interface.cache() or {}
     status.share.refCache = cache
     if m.isGlobal(obj) then
         obj = m.getKeyName(obj)
@@ -2818,21 +2849,41 @@ function m.getRefCache(status, obj, mode)
     if not cache[mode] then
         cache[mode] = {}
     end
-    if globalCache and not globalCache[mode] then
-        globalCache[mode] = {}
+    if not deepCache[mode] then
+        deepCache[mode] = {}
     end
-    local sourceCache = globalCache and globalCache[mode][obj] or cache[mode][obj]
+    local sourceCache
+    if isDeep then
+        sourceCache = deepCache[mode][obj]
+    else
+        sourceCache = cache[mode][obj]
+    end
     if sourceCache then
         return sourceCache
     end
     sourceCache = {}
     cache[mode][obj] = sourceCache
-    if globalCache then
-        globalCache[mode][obj] = sourceCache
+    if isDeep then
+        deepCache[mode][obj] = sourceCache
     end
     return nil, function (results)
         for i = 1, #results do
             sourceCache[i] = results[i]
+        end
+        if not isDeep then
+            return
+        end
+        if mode == 'ref'
+        or mode == 'def' then
+            for i = 1, #results do
+                local res = results[i]
+                if not deepCache[mode][res] then
+                    cache[mode][res] = sourceCache
+                    if isDeep then
+                        deepCache[mode][res] = sourceCache
+                    end
+                end
+            end
         end
     end
 end
@@ -3289,6 +3340,13 @@ function m.inferCheckDoc(status, source)
     end
     if source.type == 'doc.field' then
         local results = m.getDocTypeNames(status, source.extends)
+        for _, res in ipairs(results) do
+            status.results[#status.results+1] = res
+        end
+        return true
+    end
+    if source.type == 'doc.alias.name' then
+        local results = m.getDocTypeNames(status, m.getDocState(source).extends)
         for _, res in ipairs(results) do
             status.results[#status.results+1] = res
         end
@@ -3830,10 +3888,18 @@ function m.inferByDef(status, obj)
     for _, src in ipairs(newStatus.results) do
         local inferStatus = m.status(newStatus)
         m.searchInfer(inferStatus, src)
-        for _, infer in ipairs(inferStatus.results) do
-            if not mark[infer.source] then
-                mark[infer.source] = true
-                status.results[#status.results+1] = infer
+        if #inferStatus.results == 0 then
+            status.results[#status.results+1] = {
+                type   = 'any',
+                source = src,
+                level  = 0,
+            }
+        else
+            for _, infer in ipairs(inferStatus.results) do
+                if not mark[infer.source] then
+                    mark[infer.source] = true
+                    status.results[#status.results+1] = infer
+                end
             end
         end
     end
@@ -3861,7 +3927,7 @@ local function inferBySetOfLocal(status, source)
     end
 end
 
-function m.inferBySet(status, source)
+function m.inferByLocalRef(status, source)
     if #status.results ~= 0 then
         return
     end
@@ -4247,18 +4313,16 @@ function m.searchInfer(status, obj)
         return
     end
 
+    m.inferByLocalRef(status, obj)
     if status.deep then
         tracy.ZoneBeginN('inferByDef')
         m.inferByDef(status, obj)
         tracy.ZoneEnd()
     end
-    m.inferBySet(status, obj)
     m.inferByCall(status, obj)
     m.inferByGetTable(status, obj)
     m.inferByUnary(status, obj)
     m.inferByBinary(status, obj)
-    m.inferByCallReturn(status, obj)
-    m.inferByPCallReturn(status, obj)
     m.cleanInfers(status.results, obj)
     if makeCache then
         makeCache(status.results)
