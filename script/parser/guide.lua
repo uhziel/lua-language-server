@@ -820,9 +820,12 @@ function m.getSimpleName(obj)
             return
         end
         if node.special == 'rawset'
-        or node.special == 'rawget'
-        or node.special == 'diyset' or node.special == 'diyclass' then
+        or node.special == 'rawget' then
             local key = obj.args and obj.args[2]
+            return m.getKeyName(key)
+        end
+        if node.special == 'diyset' or node.special == 'diyclass' then
+            local key = obj.args and obj.args[1]
             return m.getKeyName(key)
         end
         return ('%p'):format(obj)
