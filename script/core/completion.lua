@@ -593,7 +593,7 @@ local function checkTableField(ast, word, start, results)
 end
 
 local function checkCommon(ast, word, text, offset, results)
-    local myUri = ast.uri
+    local myUri = ast and ast.uri
     local used = {}
     for _, result in ipairs(results) do
         used[result.label] = true
@@ -601,22 +601,36 @@ local function checkCommon(ast, word, text, offset, results)
     for _, data in ipairs(keyWordMap) do
         used[data[1]] = true
     end
-    if config.config.completion.workspaceWord then
+    if config.config.completion.workspaceWord and #word >= 2 then
+        local myHead = word:sub(1, 2)
         for uri in files.eachFile() do
+            if #results >= 100 then
+                break
+            end
+            if myUri and files.eq(myUri, uri) then
+                goto CONTINUE
+            end
             local cache = files.getCache(uri)
             if not cache.commonWords then
                 cache.commonWords = {}
                 local mark = {}
-                for str in files.getText(uri):gmatch '([%a_][%w_]*)' do
-                    if not mark[str] then
+                for str in files.getText(uri):gmatch '([%a_][%w_]+)' do
+                    if #str >= 3 and not mark[str] then
                         mark[str] = true
-                        cache.commonWords[#cache.commonWords+1] = str
+                        local head = str:sub(1, 2)
+                        if not cache.commonWords[head] then
+                            cache.commonWords[head] = {}
+                        end
+                        cache.commonWords[head][#cache.commonWords[head]+1] = str
                     end
                 end
             end
-            for _, str in ipairs(cache.commonWords) do
+            for _, str in ipairs(cache.commonWords[myHead] or {}) do
+                if #results >= 100 then
+                    break
+                end
                 if  not used[str]
-                and (str ~= word or not files.eq(myUri, uri)) then
+                and str ~= word then
                     used[str] = true
                     if matchKey(word, str) then
                         results[#results+1] = {
@@ -626,11 +640,18 @@ local function checkCommon(ast, word, text, offset, results)
                     end
                 end
             end
+            ::CONTINUE::
         end
         for uri in files.eachDll() do
+            if #results >= 100 then
+                break
+            end
             local words = files.getDllWords(uri) or {}
             for _, str in ipairs(words) do
-                if not used[str] and str ~= word then
+                if #results >= 100 then
+                    break
+                end
+                if #str >= 3 and not used[str] and str ~= word then
                     used[str] = true
                     if matchKey(word, str) then
                         results[#results+1] = {
@@ -641,16 +662,18 @@ local function checkCommon(ast, word, text, offset, results)
                 end
             end
         end
-    else
-        for str, pos in text:gmatch '([%a_][%w_]*)()' do
-            if not used[str] and pos - 1 ~= offset then
-                used[str] = true
-                if matchKey(word, str) then
-                    results[#results+1] = {
-                        label = str,
-                        kind  = define.CompletionItemKind.Text,
-                    }
-                end
+    end
+    for str, pos in text:gmatch '([%a_][%w_]+)()' do
+        if #results >= 100 then
+            break
+        end
+        if #str >= 3 and not used[str] and pos - 1 ~= offset then
+            used[str] = true
+            if matchKey(word, str) then
+                results[#results+1] = {
+                    label = str,
+                    kind  = define.CompletionItemKind.Text,
+                }
             end
         end
     end
@@ -1158,6 +1181,11 @@ local function tryWord(ast, text, offset, results)
     end
     local hasSpace = finish ~= offset
     if isInString(ast, offset) then
+        if not hasSpace then
+            if #results == 0 then
+                checkCommon(ast, word, text, offset, results)
+            end
+        end
     else
         local parent, oop = findParent(ast, text, start - 1)
         if parent then
@@ -1203,7 +1231,9 @@ local function trySymbol(ast, text, offset, results)
     or symbol == ':' then
         local parent, oop = findParent(ast, text, start)
         if parent then
+            tracy.ZoneBeginN 'completion.trySymbol'
             checkField(ast, '', start, offset, parent, oop, results)
+            tracy.ZoneEnd()
         end
     end
     if symbol == '(' then
@@ -1326,7 +1356,7 @@ end
 
 local function getComment(ast, offset)
     for _, comm in ipairs(ast.comms) do
-        if offset >= comm.start and offset <= comm.finish then
+        if offset >= comm.start - 2 and offset <= comm.finish then
             return comm
         end
     end
@@ -1631,10 +1661,26 @@ local function tryLuaDoc(ast, text, offset, results)
 end
 
 local function tryComment(ast, text, offset, results)
+    if #results > 0 then
+        return
+    end
     local word = findWord(text, offset)
     local doc  = getLuaDoc(ast, offset)
-    local line = text:sub(doc.start, offset)
     if not word then
+        local comment = getComment(ast, offset)
+        if comment.type == 'comment.short'
+        or comment.type == 'comment.cshort' then
+            if comment.text == '' then
+                results[#results+1] = {
+                    label = '#region',
+                    kind  = define.CompletionItemKind.Snippet,
+                }
+                results[#results+1] = {
+                    label = '#endregion',
+                    kind  = define.CompletionItemKind.Snippet,
+                }
+            end
+        end
         return
     end
     if doc and doc.type ~= 'doc.comment' then
@@ -1644,10 +1690,15 @@ local function tryComment(ast, text, offset, results)
 end
 
 local function completion(uri, offset)
+    tracy.ZoneBeginN 'completion.getAst'
     local ast = files.getAst(uri)
+    tracy.ZoneEnd()
+    tracy.ZoneBeginN 'completion.getText'
     local text = files.getText(uri)
+    tracy.ZoneEnd()
     local results = {}
     clearStack()
+    tracy.ZoneBeginN 'completion'
     if ast then
         if getComment(ast, offset) then
             tryLuaDoc(ast, text, offset, results)
@@ -1665,6 +1716,7 @@ local function completion(uri, offset)
             checkCommon(ast, word, text, offset, results)
         end
     end
+    tracy.ZoneEnd()
 
     if #results == 0 then
         return nil

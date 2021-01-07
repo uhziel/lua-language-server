@@ -905,7 +905,7 @@ local ast = 1
 local t = 'as$'
 local ask = 1
 ]]
-(nil)
+(EXISTS)
 
 TEST [[
 local add
@@ -1990,3 +1990,17 @@ ${1:comment}\
 }
 
 Cared['insertText'] = nil
+
+TEST [[
+--$
+]]
+{
+    {
+        label = '#region',
+        kind  = define.CompletionItemKind.Snippet,
+    },
+    {
+        label = '#endregion',
+        kind  = define.CompletionItemKind.Snippet,
+    }
+}

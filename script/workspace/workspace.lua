@@ -13,11 +13,12 @@ local sp         = require 'bee.subprocess'
 
 local m = {}
 m.type = 'workspace'
-m.nativeVersion = -1
+m.nativeVersion  = -1
 m.libraryVersion = -1
-m.nativeMatcher = nil
-m.requireCache = {}
-m.matchOption = {
+m.nativeMatcher  = nil
+m.requireCache   = {}
+m.cache          = {}
+m.matchOption    = {
     ignoreCase = platform.OS == 'Windows',
 }
 
@@ -133,17 +134,17 @@ function m.getLibraryMatchers()
     end
 
     local librarys = {}
-    for path, pattern in pairs(config.config.workspace.library) do
-        librarys[m.normalize(path)] = pattern
+    for path in pairs(config.config.workspace.library) do
+        librarys[m.normalize(path)] = true
     end
     if library.metaPath then
         librarys[m.normalize(library.metaPath)] = true
     end
     m.libraryMatchers = {}
-    for path, pattern in pairs(librarys) do
+    for path in pairs(librarys) do
         if fs.exists(fs.path(path)) then
             local nPath = fs.absolute(fs.path(path)):string()
-            local matcher = glob.gitignore(pattern, m.matchOption, globInteferFace)
+            local matcher = glob.gitignore(true, m.matchOption, globInteferFace)
             if platform.OS == 'Windows' then
                 matcher:setOption 'ignoreCase'
             end
@@ -258,6 +259,7 @@ function m.awaitPreload()
     await.setID 'preload'
     m.libraryMatchers = nil
     m.nativeMatcher   = nil
+    m.cache           = {}
     local progress = {
         max     = 0,
         read    = 0,
@@ -300,9 +302,19 @@ function m.findUrisByFilePath(path)
     if type(path) ~= 'string' then
         return {}
     end
+    local lpath = path:lower():gsub('[/\\]+', '/')
+    local vm    = require 'vm'
+    local resultCache = vm.getCache 'findUrisByRequirePath.result'
+    if resultCache[path] then
+        return resultCache[path].results, resultCache[path].posts
+    end
+    tracy.ZoneBeginN('findUrisByFilePath #1')
     local results = {}
     local posts = {}
     for uri in files.eachFile() do
+        if not uri:find(lpath, 1, true) then
+            goto CONTINUE
+        end
         local pathLen = #path
         local curPath = furi.decode(files.getOriginUri(uri))
         local curLen  = #curPath
@@ -315,7 +327,13 @@ function m.findUrisByFilePath(path)
                 posts[uri] = post:gsub('^[/\\]+', '')
             end
         end
+        ::CONTINUE::
     end
+    tracy.ZoneEnd()
+    resultCache[path] = {
+        results = results,
+        posts   = posts,
+    }
     return results, posts
 end
 
@@ -325,6 +343,12 @@ function m.findUrisByRequirePath(path)
     if type(path) ~= 'string' then
         return {}
     end
+    local vm    = require 'vm'
+    local cache = vm.getCache 'findUrisByRequirePath'
+    if cache[path] then
+        return cache[path].results, cache[path].searchers
+    end
+    tracy.ZoneBeginN('findUrisByRequirePath')
     local results = {}
     local mark = {}
     local searchers = {}
@@ -350,6 +374,11 @@ function m.findUrisByRequirePath(path)
             end
         end
     end
+    tracy.ZoneEnd()
+    cache[path] = {
+        results   = results,
+        searchers = searchers,
+    }
     return results, searchers
 end
 
@@ -384,6 +413,14 @@ function m.getRelativePath(uri)
     else
         return m.normalize(path):gsub('^[/\\]+', '')
     end
+end
+
+--- 获取工作区等级的缓存
+function m.getCache(name)
+    if not m.cache[name] then
+        m.cache[name] = {}
+    end
+    return m.cache[name]
 end
 
 function m.reload()

@@ -15,6 +15,7 @@ local furi      = require 'file-uri'
 local pub       = require 'pub'
 local fs        = require 'bee.filesystem'
 local lang      = require 'language'
+local plugin    = require 'plugin'
 
 local function updateConfig()
     local diagnostics = require 'provider.diagnostic'
@@ -55,14 +56,12 @@ local function updateConfig()
         library.init()
         workspace.reload()
         semantic.refresh()
+        plugin.init()
     end
     if not util.equal(oldConfig.diagnostics, newConfig.diagnostics) then
         diagnostics.diagnosticsAll()
     end
-    if not util.equal(oldConfig.plugin, newConfig.plugin) then
-    end
     if not util.equal(oldConfig.workspace, newConfig.workspace)
-    or not util.equal(oldConfig.plugin, newConfig.plugin)
     or not util.equal(oldOther.associations, newOther.associations)
     or not util.equal(oldOther.exclude, newOther.exclude)
     then
@@ -354,6 +353,7 @@ end)
 proto.on('textDocument/completion', function (params)
     --log.info(util.dump(params))
     local core = require 'core.completion'
+    --log.debug('textDocument/completion')
     --log.debug('completion:', params.context and params.context.triggerKind, params.context and params.context.triggerCharacter)
     local uri  = params.textDocument.uri
     if not files.exists(uri) then
@@ -684,4 +684,36 @@ proto.on('textDocument/semanticTokens/range', function (params)
     return {
         data = results
     }
+end)
+
+proto.on('textDocument/foldingRange', function (params)
+    local core    = require 'core.folding'
+    local uri     = params.textDocument.uri
+    local lines   = files.getLines(uri)
+    local text    = files.getText(uri)
+    if not lines or not text then
+        return nil
+    end
+    local regions = core(uri)
+    if not regions then
+        return nil
+    end
+
+    local results = {}
+    for _, region in ipairs(regions) do
+        local startLine = define.position(lines, text, region.start).line
+        local endLine   = define.position(lines, text, region.finish).line
+        if not region.hideLastLine then
+            endLine = endLine - 1
+        end
+        if startLine < endLine then
+            results[#results+1] = {
+                startLine      = startLine,
+                endLine        = endLine,
+                kind           = region.kind,
+            }
+        end
+    end
+
+    return results
 end)

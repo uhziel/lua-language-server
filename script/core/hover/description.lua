@@ -25,6 +25,7 @@ local function asStringInRequire(source, literal)
             result = ws.findUrisByFilePath(literal)
         end
         if result and #result > 0 then
+            local shows = {}
             for i, uri in ipairs(result) do
                 local searcher = searchers and searchers[uri]
                 uri = files.getOriginUri(uri)
@@ -34,19 +35,19 @@ local function asStringInRequire(source, literal)
                 end
                 path = path:gsub('^[/\\]*', '')
                 if vm.isMetaFile(uri) then
-                    result[i] = ('* [[meta]](%s)'):format(uri)
+                    shows[i] = ('* [[meta]](%s)'):format(uri)
                 elseif searcher then
                     searcher = searcher:sub(#rootPath + 1)
                     searcher = ws.normalize(searcher)
                     searcher = searcher:gsub('^[/\\]+', '')
-                    result[i] = ('* [%s](%s) %s'):format(path, uri, lang.script('HOVER_USE_LUA_PATH', searcher))
+                    shows[i] = ('* [%s](%s) %s'):format(path, uri, lang.script('HOVER_USE_LUA_PATH', searcher))
                 else
-                    result[i] = ('* [%s](%s)'):format(path, uri)
+                    shows[i] = ('* [%s](%s)'):format(path, uri)
                 end
             end
-            table.sort(result)
+            table.sort(shows)
             local md = markdown()
-            md:add('md', table.concat(result, '\n'))
+            md:add('md', table.concat(shows, '\n'))
             return md:string()
         end
     end
@@ -94,7 +95,11 @@ local function getBindComment(source, docGroup, base)
                 continue = true
                 lines = {}
             end
-            lines[#lines+1] = doc.comment.text:sub(2)
+            if doc.comment.text:sub(1, 1) == '-' then
+                lines[#lines+1] = doc.comment.text:sub(2)
+            else
+                lines[#lines+1] = doc.comment.text
+            end
         elseif doc == base then
             break
         else
@@ -201,7 +206,11 @@ local function getFunctionComment(source)
     local comments = {}
     for _, doc in ipairs(docGroup) do
         if doc.type == 'doc.comment' then
-            comments[#comments+1] = doc.comment.text:sub(2)
+            if doc.comment.text:sub(1, 1) == '-' then
+                comments[#comments+1] = doc.comment.text:sub(2)
+            else
+                comments[#comments+1] = doc.comment.text
+            end
         elseif doc.type == 'doc.param' then
             if doc.comment then
                 comments[#comments+1] = ('@*param* `%s` — %s'):format(

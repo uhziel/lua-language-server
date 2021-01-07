@@ -1,9 +1,33 @@
 # changelog
 
+## 1.11.2
+`2021-1-7`
+* `FIX` [#345](https://github.com/sumneko/lua-language-server/issues/345): not works with unexpect args
+* `FIX` [#346](https://github.com/sumneko/lua-language-server/issues/346): dont modify the cache
+
+## 1.11.1
+`2021-1-5`
+* `CHG` performance optimization
+
+## 1.11.0
+`2021-1-5`
+* `NEW` `Lua.runtime.plugin`
+* `NEW` intelli-scense: improved `m.f = function (self) end` from `self` to `m`
+* `CHG` performance optimization
+* `CHG` completion: improve performance of workspace words
+* `FIX` hover: tail comments may be cutted
+* `FIX` runtime errors
+
 ## 1.10.0
+`2021-1-4`
 * `NEW` workspace: supports `.dll`(`.so`) in `require`
+* `NEW` folding: `---@class`, `--#region` and docs of function
+* `NEW` diagnostic: `count-down-loop`
 * `CHG` supports `~` in command line
 * `CHG` completion: improve workspace words
+* `CHG` completion: show words in string
+* `CHG` completion: split `for .. in` to `for .. ipairs` and `for ..pairs`
+* `CHG` diagnostic: `unused-function` checks recursive
 * `FIX` [#339](https://github.com/sumneko/lua-language-server/issues/339)
 
 ## 1.9.0

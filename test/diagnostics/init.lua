@@ -115,6 +115,21 @@ local <!x!>
 <!x!> = <!function () end!>
 ]]
 
+TEST([[
+<!local function x()
+end!>
+<!local function y()
+    x()
+end!>
+]],
+[[
+local function x()
+end
+local function <!y!>()
+    x()
+end
+]]
+)
 
 TEST [[
 print(<!x!>)
@@ -965,4 +980,22 @@ TEST [[
 local function f() end
 
 f(1)
+]]
+
+TEST [[
+for i = <!10, 1!> do
+    print(i)
+end
+]]
+
+TEST [[
+for i = <!10, 1, 5!> do
+    print(i)
+end
+]]
+
+TEST [[
+for i = 1, 1 do
+    print(i)
+end
 ]]
