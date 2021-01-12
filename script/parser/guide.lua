@@ -1567,7 +1567,11 @@ end
 local function appendValidGenericType(results, status, typeName, obj)
     if typeName.parent.type == 'doc.type.typeliteral' then
         if obj.type == 'string' and status.interface.docType then
-            local docs = status.interface.docType(obj[1])
+            local typeName = obj[1]
+            if typeName == 'UISelectObjectPath' then
+                typeName = 'UICustomWidgetPool'
+            end
+            local docs = status.interface.docType(typeName)
             for i = 1, #docs do
                 local doc = docs[i]
                 if doc.type == 'doc.class.name'
