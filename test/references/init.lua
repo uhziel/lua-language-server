@@ -60,6 +60,7 @@ config.config.runtime.special = {
     _staticClass = "diyset",
 }
 
+--[==[
 TEST [[
 ---@class Dog
 local Dog = {}
@@ -97,6 +98,7 @@ end
 local v1 = Master:foobar("", Dog)
 v1.<!eat!>()
 ]]
+]==]
 
 TEST [[
 local <?a?> = 1
