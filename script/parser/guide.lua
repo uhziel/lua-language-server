@@ -1564,14 +1564,21 @@ function m.checkSameSimpleInParamSelf(status, obj, start, pushQueue)
     end
 end
 
-local function appendValidGenericType(results, status, typeName, obj)
+local function appendValidGenericType(results, status, typeName, obj, genericName)
     if typeName.parent.type == 'doc.type.typeliteral' then
         if obj.type == 'string' and status.interface.docType then
-            local typeName = obj[1]
-            if typeName == 'UISelectObjectPath' then
-                typeName = 'UICustomWidgetPool'
+            local typeNameStr = obj[1]
+            if typeNameStr == 'UISelectObjectPath' then
+                typeNameStr = 'UICustomWidgetPool'
             end
-            local docs = status.interface.docType(typeName)
+            if genericName == 'T_GetAsset' then
+                if string.find(typeNameStr, '.spriteatlas') then
+                    typeNameStr = 'UnityEngine.U2D.SpriteAtlas'
+                else
+                    typeNameStr = 'UnityEngine.Object'
+                end
+            end
+            local docs = status.interface.docType(typeNameStr)
             for i = 1, #docs do
                 local doc = docs[i]
                 if doc.type == 'doc.class.name'
@@ -1611,7 +1618,7 @@ local function stepRefOfGeneric(status, typeUnit, args, mode)
             and source.parent.type == 'funcargs' then
                 for index, arg in ipairs(source.parent) do
                     if arg == source then
-                        appendValidGenericType(results, status, typeName, args[index])
+                        appendValidGenericType(results, status, typeName, args[index], myName)
                     end
                 end
             end
