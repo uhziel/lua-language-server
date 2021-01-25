@@ -330,3 +330,25 @@ for i, v in ipairs(v1) do
     print(v2.<?bar1?>)
 end
 ]]
+
+TEST [[
+---@class Foo
+local mt
+function mt:<!method1!>() end
+
+---@class UnityEngine.GameObject
+local m = {}
+
+---@overload fun(type:string): UnityEngine.Component
+---@param type integer
+---@return integer
+function m:GetComponent(type) end
+
+UnityEngine = {}
+UnityEngine.GameObject = m
+
+---@type UnityEngine.GameObject
+gameObject = {}
+local v1 = gameObject.GetComponent("Foo")
+print(v1.<?method1?>())
+]]

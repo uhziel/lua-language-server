@@ -1940,10 +1940,56 @@ local function checkSameSimpleAndMergeFunctionReturnsByDoc(status, results, sour
     return true
 end
 
-local function checkSameSimpleAndMergeDocTypeFunctionReturns(status, results, source, index)
+local function isH3dGetComponentFunc(typeUnit)
+    -- H3dGetComponentFunc 的签名为 fun(type:string): UnityEngine.Component
+    if not typeUnit then
+        return false
+    end
+
+    if typeUnit.type ~= 'doc.type.function' then
+        return false
+    end
+
+    if #(typeUnit.args) ~= 1 then
+        return false
+    end
+
+    local arg1 = typeUnit.args[1]
+    if arg1.name[1] ~= 'type' then
+        return false
+    end
+
+    if #(arg1.extends.types) ~= 1 then
+        return
+    end
+
+    local arg1Type = arg1.extends.types[1]
+    if arg1Type[1] ~= 'string' then
+        return false
+    end
+
+    if #(typeUnit.returns) ~= 1 then
+        return false
+    end
+
+    local return1 = typeUnit.returns[1]
+    if #(return1.types) ~= 1 then
+        return false
+    end
+
+    local return1Type = return1.types[1]
+    if return1Type[1] ~= 'UnityEngine.Component' then
+        return false
+    end
+
+    return true
+end
+
+local function checkSameSimpleAndMergeDocTypeFunctionReturns(status, results, source, callargs, index)
     if not source.bindDocs then
         return
     end
+    local added = false
     for _, doc in ipairs(source.bindDocs) do
         if doc.type == 'doc.type' then
             for _, typeUnit in ipairs(doc.types) do
@@ -1955,13 +2001,30 @@ local function checkSameSimpleAndMergeDocTypeFunctionReturns(status, results, so
                             for _, res in ipairs(types) do
                                 results[#results+1] = res
                             end
-                            return true
+                            added = true
+                        end
+                    end
+                end
+            end
+        elseif doc.type == 'doc.overload' then
+            if isH3dGetComponentFunc(doc.overload) then
+                if callargs.type == 'callargs' and callargs[1].type == 'string' then
+                    local typeNameStr = callargs[1][1]
+                    local docs = status.interface.docType(typeNameStr)
+                    for i = 1, #docs do
+                        local doc = docs[i]
+                        if doc.type == 'doc.class.name'
+                        or doc.type == 'doc.alias.name' then
+                            results[#results+1] = doc
+                            break
                         end
                     end
                 end
             end
         end
     end
+
+    return added
 end
 
 function m.checkSameSimpleInCallInSameFile(status, func, args, index)
@@ -1972,7 +2035,7 @@ function m.checkSameSimpleInCallInSameFile(status, func, args, index)
     local newStatus = m.status(status)
     m.searchRefs(newStatus, func, 'def')
     for _, def in ipairs(newStatus.results) do
-        local hasDocReturn = checkSameSimpleAndMergeDocTypeFunctionReturns(status, results, def, index)
+        local hasDocReturn = checkSameSimpleAndMergeDocTypeFunctionReturns(status, results, def, args, index)
                         or   checkSameSimpleAndMergeFunctionReturnsByDoc(status, results, def, index, args)
         if not hasDocReturn then
             local value = m.getObjectValue(def) or def
