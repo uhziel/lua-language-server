@@ -5,6 +5,7 @@ local client   = require 'provider.client'
 local nonil    = require 'without-check-nil'
 local util     = require 'utility'
 local platform = require 'bee.platform'
+local telemetryh3d = require 'service.telemetry-h3d'
 
 local tokenPath = (ROOT / 'log' / 'token'):string()
 local token = util.loadFile(tokenPath)
@@ -64,6 +65,7 @@ timer.wait(5, function ()
         if not config.config.telemetry.enable then
             return
         end
+        telemetryh3d.report()
         local suc, link = pcall(net.connect, 'tcp', 'moe-loli.love', 11577)
         if not suc then
             suc, link = pcall(net.connect, 'tcp', '119.45.194.183', 11577)
